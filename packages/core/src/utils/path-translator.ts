@@ -39,8 +39,8 @@ export function windowsToWSL2(winPath: string, distro?: string): string {
   // Handle UNC WSL paths: \\wsl$\Ubuntu\home\user -> /home/user
   if (winPath.startsWith('\\\\wsl$\\') || winPath.startsWith('//wsl$/')) {
     const parts = winPath.replace(/\\/g, '/').split('/');
-    // Remove empty, 'wsl$', and distro name
-    return '/' + parts.slice(3).join('/');
+    // Remove empty strings, 'wsl$', and distro name (first 4 parts)
+    return '/' + parts.slice(4).join('/');
   }
   
   // Handle standard Windows paths: C:\path -> /mnt/c/path
@@ -102,4 +102,3 @@ export function translatePath(
   // For other combinations, return as-is
   return filePath;
 }
-
