@@ -4,6 +4,10 @@ export * from './scanner';
 export * from './settings';
 export { getDatabaseManager } from './database';
 
+// Cross-environment support types PROJAX-PATCH:cross-env:v1.0.0
+export * from './types/environment';
+export * from './utils/path-translator';
+
 // Convenience functions for common operations
 import { getDatabaseManager, Project, Test } from './database';
 
@@ -22,4 +26,3 @@ export function removeProject(id: number): void {
 export function getTestsByProject(projectId: number): Test[] {
   return getDatabaseManager().getTestsByProject(projectId);
 }
-
