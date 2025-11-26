@@ -16,7 +16,7 @@ describe('DockerExecutor', () => {
       mockExecSync.mockReturnValue('' as any);
       
       expect(DockerExecutor.isAvailable()).toBe(true);
-      expect(mockExecSync).toHaveBeenCalledWith('docker --version', { stdio: 'ignore' });
+      expect(mockExecSync).toHaveBeenCalledWith('docker --version', { stdio: 'ignore', timeout: 5000 });
     });
 
     it('should return false when Docker command fails', () => {
@@ -33,7 +33,7 @@ describe('DockerExecutor', () => {
       mockExecSync.mockReturnValue('' as any);
       
       expect(DockerExecutor.isRunning()).toBe(true);
-      expect(mockExecSync).toHaveBeenCalledWith('docker ps', { stdio: 'ignore' });
+      expect(mockExecSync).toHaveBeenCalledWith('docker ps', { stdio: 'ignore', timeout: 10000 });
     });
 
     it('should return false when Docker daemon is not running', () => {
@@ -46,20 +46,20 @@ describe('DockerExecutor', () => {
   });
 
   describe('listContainers', () => {
-    it('should return list of running containers', () => {
+    it('should return list of running containers with status', () => {
       mockExecSync.mockReturnValue(
-        'abc123\tmy-app\tnginx:latest\ndef456\tmy-db\tpostgres:14\n' as any
+        'abc123\tmy-app\tnginx:latest\tUp 2 hours\trunning\ndef456\tmy-db\tpostgres:14\tUp 1 day\trunning\n' as any
       );
       
       const containers = DockerExecutor.listContainers();
       
       expect(containers).toEqual([
-        { id: 'abc123', name: 'my-app', image: 'nginx:latest' },
-        { id: 'def456', name: 'my-db', image: 'postgres:14' }
+        { id: 'abc123', name: 'my-app', image: 'nginx:latest', status: 'Up 2 hours', state: 'running' },
+        { id: 'def456', name: 'my-db', image: 'postgres:14', status: 'Up 1 day', state: 'running' }
       ]);
       expect(mockExecSync).toHaveBeenCalledWith(
-        'docker ps --format "{{.ID}}\\t{{.Names}}\\t{{.Image}}"',
-        { encoding: 'utf-8' }
+        'docker ps  --format "{{.ID}}\\t{{.Names}}\\t{{.Image}}\\t{{.Status}}\\t{{.State}}"',
+        { encoding: 'utf-8', timeout: 10000 }
       );
     });
 
@@ -73,13 +73,13 @@ describe('DockerExecutor', () => {
 
     it('should filter out empty lines', () => {
       mockExecSync.mockReturnValue(
-        'abc123\tmy-app\tnginx:latest\n\n\n' as any
+        'abc123\tmy-app\tnginx:latest\tUp 1 hour\trunning\n\n\n' as any
       );
       
       const containers = DockerExecutor.listContainers();
       
       expect(containers).toEqual([
-        { id: 'abc123', name: 'my-app', image: 'nginx:latest' }
+        { id: 'abc123', name: 'my-app', image: 'nginx:latest', status: 'Up 1 hour', state: 'running' }
       ]);
     });
 
@@ -125,34 +125,33 @@ describe('DockerExecutor', () => {
       mockExecSync
         .mockReturnValueOnce('' as any) // isAvailable
         .mockReturnValueOnce('' as any) // isRunning
-        .mockReturnValueOnce('abc123\tother-app\tnginx:latest\n' as any); // listContainers
+        .mockReturnValueOnce('abc123\tother-app\tnginx:latest\tUp 1 hour\trunning\n' as any); // listContainers
       
       const executor = new DockerExecutor({ containerName: 'my-app' });
       const result = executor.validate();
       
       expect(result.valid).toBe(false);
       expect(result.message).toContain('my-app');
-      expect(result.message).toContain('not running');
+      expect(result.message).toContain('not found');
     });
 
-    it('should pass validation when container is found by name', () => {
+    it('should pass validation when container is found by name and running', () => {
       mockExecSync
         .mockReturnValueOnce('' as any) // isAvailable
         .mockReturnValueOnce('' as any) // isRunning
-        .mockReturnValueOnce('abc123\tmy-app\tnginx:latest\n' as any); // listContainers
+        .mockReturnValueOnce('abc123\tmy-app\tnginx:latest\tUp 1 hour\trunning\n' as any); // listContainers
       
       const executor = new DockerExecutor({ containerName: 'my-app' });
       const result = executor.validate();
       
       expect(result.valid).toBe(true);
-      expect(result.message).toBeUndefined();
     });
 
-    it('should pass validation when container is found by ID prefix', () => {
+    it('should pass validation when container is found by ID prefix and running', () => {
       mockExecSync
         .mockReturnValueOnce('' as any) // isAvailable
         .mockReturnValueOnce('' as any) // isRunning
-        .mockReturnValueOnce('abc123def456\tmy-app\tnginx:latest\n' as any); // listContainers
+        .mockReturnValueOnce('abc123def456\tmy-app\tnginx:latest\tUp 1 hour\trunning\n' as any); // listContainers
       
       const executor = new DockerExecutor({ containerId: 'abc123' });
       const result = executor.validate();
@@ -164,7 +163,7 @@ describe('DockerExecutor', () => {
       mockExecSync
         .mockReturnValueOnce('' as any) // isAvailable
         .mockReturnValueOnce('' as any) // isRunning
-        .mockReturnValueOnce('abc123\tmy-app\tnginx:latest\n' as any); // listContainers
+        .mockReturnValueOnce('abc123\tmy-app\tnginx:latest\tUp 1 hour\trunning\n' as any); // listContainers
       
       const executor = new DockerExecutor({});
       const result = executor.validate();
