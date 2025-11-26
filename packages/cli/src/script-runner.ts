@@ -4,6 +4,8 @@ import * as os from 'os';
 import { spawn } from 'child_process';
 import { getDatabaseManager } from './core-bridge';
 import { detectPortInUse, getProcessOnPort, killProcessOnPort, extractPortFromError } from './port-utils';
+import { WSL2Executor } from './executors/WSL2Executor'; /* PROJAX-PATCH:cross-env:v1.0.0 */
+import { DockerExecutor } from './executors/DockerExecutor'; /* PROJAX-PATCH:cross-env:v1.0.0 */
 
 export interface ScriptInfo {
   name: string;
@@ -368,6 +370,87 @@ export function runScript(
       return;
     }
 
+    
+    // Check for environment-specific execution /* PROJAX-PATCH:cross-env:v1.0.0 */
+    const db = getDatabaseManager();
+    const project = db.getProjectByPath(projectPath);
+    
+    if (project?.environment && project.environment.type !== 'local') {
+      // Route to appropriate executor
+      try {
+        let exitCode: number;
+        
+        if (project.environment.type === 'wsl2' && project.environment.wsl2) {
+          console.log(`\nExecuting in WSL2 (${project.environment.wsl2.distro})...\n`);
+          const executor = new WSL2Executor(project.environment.wsl2);
+          
+          // Build command string based on script runner
+          let fullCommand: string;
+          switch (script.runner) {
+            case 'npm':
+              fullCommand = `npm run ${scriptName}`;
+              break;
+            case 'yarn':
+              fullCommand = `yarn ${scriptName}`;
+              break;
+            case 'pnpm':
+              fullCommand = `pnpm run ${scriptName}`;
+              break;
+            default:
+              fullCommand = script.command;
+          }
+          
+          // Parse command into parts for executor
+          const wslCmdParts = fullCommand.split(' ');
+          const wslCmd = wslCmdParts[0];
+          const wslArgs = wslCmdParts.slice(1);
+          const result = await executor.execute(projectPath, wslCmd, wslArgs);
+          console.log(result.stdout);
+          if (result.stderr) console.error(result.stderr);
+          exitCode = result.exitCode;
+          
+        } else if (project.environment.type === 'docker' && project.environment.docker) {
+          console.log(`\nExecuting in Docker container (${project.environment.docker.containerName})...\n`);
+          const executor = new DockerExecutor(project.environment.docker);
+          
+          // Build command string based on script runner
+          let fullCommand: string;
+          switch (script.runner) {
+            case 'npm':
+              fullCommand = `npm run ${scriptName}`;
+              break;
+            case 'yarn':
+              fullCommand = `yarn ${scriptName}`;
+              break;
+            case 'pnpm':
+              fullCommand = `pnpm run ${scriptName}`;
+              break;
+            default:
+              fullCommand = script.command;
+          }
+          
+          // Parse command into parts for executor
+          const dockerCmdParts = fullCommand.split(' ');
+          const dockerCmd = dockerCmdParts[0];
+          const dockerArgs = dockerCmdParts.slice(1);
+          const result = await executor.execute(projectPath, dockerCmd, dockerArgs);
+          console.log(result.stdout);
+          if (result.stderr) console.error(result.stderr);
+          exitCode = result.exitCode;
+          
+        } else {
+          reject(new Error(`Unsupported environment type: ${project.environment.type}`));
+          return;
+        }
+        
+        resolve(exitCode);
+        return;
+      } catch (error) {
+        reject(error);
+        return;
+      }
+    }
+    // End environment-specific execution /* PROJAX-PATCH:cross-env:v1.0.0 */
     // Proactive port checking
     const canProceed = await checkPortsBeforeExecution(projectPath, scriptName, force);
     if (!canProceed) {
@@ -1084,4 +1167,3 @@ async function checkAndParseTestResults(logFile: string, projectPath: string, sc
     console.error('Error parsing test results:', error);
   }
 }
-

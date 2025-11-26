@@ -555,12 +555,7 @@ program
   .option('-n, --name <name>', 'Custom name for the project (defaults to directory name)')
   .option('-d, --description <description>', 'Description for the project')
   .option('--tags <tags>', 'Comma-separated list of tags')
-  .option('--env <environment>', 'Execution environment: local, wsl2, or docker')
-  .option('--distro <distro>', 'WSL2 distro name (required when --env wsl2)')
-  .option('--container <container>', 'Docker container name/ID (required when --env docker)')
-  .option('--compose <file>', 'Docker Compose file path (optional for docker environment)')
-  .option('--service <service>', 'Docker Compose service name (optional for docker environment)')
-  .action(async (projectPath?: string, options?: { name?: string; description?: string; tags?: string; env?: string; distro?: string; container?: string; compose?: string; service?: string }) => {
+  .action(async (projectPath?: string, options?: { name?: string; description?: string; tags?: string }) => {
     try {
       await ensureAPIServerRunning(true);
       
@@ -638,46 +633,7 @@ program
       const project = db.addProject(projectName, resolvedPath);
       
       // Update description and tags if provided
-      const updates: { description?: string | null; tags?: string[]; environment?: any } = {};
-      
-      // Handle environment configuration if provided
-      if (options?.env) {
-        const envType = options.env.toLowerCase() as 'local' | 'wsl2' | 'docker';
-        
-        if (!['local', 'wsl2', 'docker'].includes(envType)) {
-          console.error(`Error: Invalid environment type "${options.env}". Must be: local, wsl2, or docker`);
-          process.exit(1);
-        }
-        
-        const envConfig: any = { type: envType };
-        
-        if (envType === 'wsl2') {
-          if (!options.distro) {
-            console.error('Error: --distro is required when using --env wsl2');
-            process.exit(1);
-          }
-          envConfig.wsl2 = {
-            distro: options.distro,
-            translatePaths: true,
-          };
-        } else if (envType === 'docker') {
-          if (!options.container) {
-            console.error('Error: --container is required when using --env docker');
-            process.exit(1);
-          }
-          envConfig.docker = {
-            containerName: options.container,
-          };
-          if (options.compose) {
-            envConfig.docker.composePath = options.compose;
-          }
-          if (options.service) {
-            envConfig.docker.serviceName = options.service;
-          }
-        }
-        
-        updates.environment = envConfig;
-      }
+      const updates: { description?: string | null; tags?: string[] } = {};
       if (options?.description !== undefined) {
         updates.description = options.description.trim() || null;
       }
@@ -696,9 +652,6 @@ program
       }
       if (options?.tags) {
         console.log(`  Tags: ${options.tags}`);
-      }
-      if (options?.env) {
-        console.log(`  Environment: ${options.env}` + (options.distro ? ` (distro: ${options.distro})` : '') + (options.container ? ` (container: ${options.container})` : ''));
       }
       
       // Ask if user wants to scan for tests
