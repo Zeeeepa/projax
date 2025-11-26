@@ -2,6 +2,7 @@ import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
 import { execSync } from 'child_process';
+import { ProjectEnvironmentConfig } from './types/environment'; /* PROJAX-PATCH:cross-env:v1.0.0 */
 
 export interface Project {
   id: number;
@@ -12,6 +13,7 @@ export interface Project {
   last_scanned: number | null;
   created_at: number;
   tags?: string[];
+  environment?: ProjectEnvironmentConfig; /* PROJAX-PATCH:cross-env:v1.0.0 */
 }
 
 export interface Test {
